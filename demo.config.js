@@ -5,7 +5,7 @@ const config = {
   modules: [
     {
       module: "clock",
-      position: "top_left"
+      position: "top_left",
     },
     {
       module: "MMM-anotherNewsFeed",
@@ -16,8 +16,8 @@ const config = {
         showImage: true,
         showDescription: true,
         showPublishDate: true,
-        showSourceTitle: false
-      }
+        showSourceTitle: false,
+      },
     },
     {
       module: "MMM-anotherNewsFeed",
@@ -28,8 +28,8 @@ const config = {
         showImage: true,
         showDescription: true,
         showPublishDate: true,
-        showSourceTitle: false
-      }
+        showSourceTitle: false,
+      },
     },
     {
       module: "MMM-anotherNewsFeed",
@@ -40,13 +40,13 @@ const config = {
         showImage: true,
         showDescription: true,
         showPublishDate: true,
-        showSourceTitle: false
-      }
-    }
-  ]
-};
+        showSourceTitle: false,
+      },
+    },
+  ],
+}
 
 /** ************* DO NOT EDIT THE LINE BELOW ***************/
 if (typeof module !== "undefined") {
-  module.exports = config;
+  module.exports = config
 }

@@ -1,457 +1,466 @@
 /* globals config Log Module */
 
 Module.register("MMM-anotherNewsFeed", {
-	// Default module config.
-	defaults: {
-		feeds: [
-			{
-				title: "New York Times",
-				url: "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
-				encoding: "UTF-8" //ISO-8859-1
-			}
-		],
-		showAsList: false,
-		showSourceTitle: true,
-		showPublishDate: true,
-		broadcastNewsFeeds: true,
-		broadcastNewsUpdates: true,
-		showDescription: false,
-		showTitleAsUrl: false,
-		wrapTitle: true,
-		wrapDescription: true,
-		truncDescription: true,
-		lengthDescription: 400,
-		hideLoading: false,
-		reloadInterval: 5 * 60 * 1000, // every 5 minutes
-		updateInterval: 10 * 1000,
-		animationSpeed: 2.5 * 1000,
-		maxNewsItems: 0, // 0 for unlimited
-		ignoreOldItems: false,
-		ignoreOlderThan: 24 * 60 * 60 * 1000, // 1 day
-		removeStartTags: "",
-		removeEndTags: "",
-		startTags: [],
-		endTags: [],
-		prohibitedWords: [],
-		scrollLength: 500,
-		logFeedWarnings: false,
-		dangerouslyDisableAutoEscaping: false,
-		showImage: true,
-		censorWords: [],
-		suppressDuplicateTitles: false,
-	},
+  // Default module config.
+  defaults: {
+    feeds: [
+      {
+        title: "New York Times",
+        url: "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        encoding: "UTF-8", // ISO-8859-1
+      },
+    ],
+    showAsList: false,
+    showSourceTitle: true,
+    showPublishDate: true,
+    broadcastNewsFeeds: true,
+    broadcastNewsUpdates: true,
+    showDescription: false,
+    showTitleAsUrl: false,
+    wrapTitle: true,
+    wrapDescription: true,
+    truncDescription: true,
+    lengthDescription: 400,
+    hideLoading: false,
+    reloadInterval: 5 * 60 * 1000, // every 5 minutes
+    updateInterval: 10 * 1000,
+    animationSpeed: 2.5 * 1000,
+    maxNewsItems: 0, // 0 for unlimited
+    ignoreOldItems: false,
+    ignoreOlderThan: 24 * 60 * 60 * 1000, // 1 day
+    removeStartTags: "",
+    removeEndTags: "",
+    startTags: [],
+    endTags: [],
+    prohibitedWords: [],
+    scrollLength: 500,
+    logFeedWarnings: false,
+    dangerouslyDisableAutoEscaping: false,
+    showImage: true,
+    censorWords: [],
+    suppressDuplicateTitles: false,
+  },
 
-	//Define required styles.
-	getStyles: function () {
-		return ["newsfeed.css"];
-	},
+  // Define required styles.
+  getStyles: function () {
+    return ["newsfeed.css"]
+  },
 
-	// Define required translations.
-	getTranslations: function () {
-		// The translations for the default modules are defined in the core translation files.
-		// Therefor we can just return false. Otherwise we should have returned a dictionary.
-		// If you're trying to build your own module including translations, check out the documentation.
-		return false;
-	},
+  // Define required translations.
+  getTranslations: function () {
+    // The translations for the default modules are defined in the core translation files.
+    // Therefor we can just return false. Otherwise we should have returned a dictionary.
+    // If you're trying to build your own module including translations, check out the documentation.
+    return false
+  },
 
-	// Define start sequence.
-	start: function () {
-		Log.info("Starting module: " + this.name);
+  // Define start sequence.
+  start: function () {
+    Log.info("Starting module: " + this.name)
 
-		this.relativeTimeFormatter = new Intl.RelativeTimeFormat(config.language, { numeric: "auto" });
+    this.relativeTimeFormatter = new Intl.RelativeTimeFormat(config.language, { numeric: "auto" })
 
-		this.newsItems = [];
-		this.loaded = false;
-		this.error = null;
-		this.activeItem = 0;
-		this.scrollPosition = 0;
+    this.newsItems = []
+    this.loaded = false
+    this.error = null
+    this.activeItem = 0
+    this.scrollPosition = 0
 
-		this.registerFeeds();
+    this.registerFeeds()
 
-		this.isShowingDescription = this.config.showDescription;
-	},
+    this.isShowingDescription = this.config.showDescription
+  },
 
-	// Override socket notification handler.
-	socketNotificationReceived: function (notification, payload) {
-		if (notification === "NEWS_ITEMS") {
-			this.generateFeed(payload);
+  // Override socket notification handler.
+  socketNotificationReceived: function (notification, payload) {
+    if (notification === "NEWS_ITEMS") {
+      this.generateFeed(payload)
 
-			if (!this.loaded) {
-				if (this.config.hideLoading) {
-					this.show();
-				}
-				this.scheduleUpdateInterval();
-			}
+      if (!this.loaded) {
+        if (this.config.hideLoading) {
+          this.show()
+        }
+        this.scheduleUpdateInterval()
+      }
 
-			this.loaded = true;
-			this.error = null;
-		} else if (notification === "NEWSFEED_ERROR") {
-			this.error = this.translate(payload.error_type);
-			this.scheduleUpdateInterval();
-		}
-	},
+      this.loaded = true
+      this.error = null
+    }
+    else if (notification === "NEWSFEED_ERROR") {
+      this.error = this.translate(payload.error_type)
+      this.scheduleUpdateInterval()
+    }
+  },
 
-	//Override fetching of template name
-	getTemplate: function () {
-		if (this.config.feedUrl) {
-			return "oldconfig.njk";
-		} else if (this.config.showFullArticle) {
-			return "fullarticle.njk";
-		}
-		return "newsfeed.njk";
-	},
+  // Override fetching of template name
+  getTemplate: function () {
+    if (this.config.feedUrl) {
+      return "oldconfig.njk"
+    }
+    else if (this.config.showFullArticle) {
+      return "fullarticle.njk"
+    }
+    return "newsfeed.njk"
+  },
 
-	//Override template data and return whats used for the current template
-	getTemplateData: function () {
-		// this.config.showFullArticle is a run-time configuration, triggered by optional notifications
-		if (this.config.showFullArticle) {
-			return {
-				url: this.getActiveItemURL()
-			};
-		}
-		if (this.error) {
-			return {
-				error: this.error
-			};
-		}
-		if (this.newsItems.length === 0) {
-			return {
-				empty: true
-			};
-		}
-		if (this.activeItem >= this.newsItems.length) {
-			this.activeItem = 0;
-		}
+  // Override template data and return whats used for the current template
+  getTemplateData: function () {
+    // this.config.showFullArticle is a run-time configuration, triggered by optional notifications
+    if (this.config.showFullArticle) {
+      return {
+        url: this.getActiveItemURL(),
+      }
+    }
+    if (this.error) {
+      return {
+        error: this.error,
+      }
+    }
+    if (this.newsItems.length === 0) {
+      return {
+        empty: true,
+      }
+    }
+    if (this.activeItem >= this.newsItems.length) {
+      this.activeItem = 0
+    }
 
-		const item = this.newsItems[this.activeItem];
-		const items = this.newsItems.map((item) => {
-			item.publishDate = this.formatPublishDate(item.pubdate);
-			return item;
-		});
+    const item = this.newsItems[this.activeItem]
+    const items = this.newsItems.map((item) => {
+      item.publishDate = this.formatPublishDate(item.pubdate)
+      return item
+    })
 
-		return {
-			loaded: true,
-			config: this.config,
-			sourceTitle: item.sourceTitle,
-			publishDate: this.formatPublishDate(item.pubdate),
-			title: item.title,
-			url: item.url,
-			description: item.description,
-			image: item.image,
-			items: items
-		};
-	},
+    return {
+      loaded: true,
+      config: this.config,
+      sourceTitle: item.sourceTitle,
+      publishDate: this.formatPublishDate(item.pubdate),
+      title: item.title,
+      url: item.url,
+      description: item.description,
+      image: item.image,
+      items: items,
+    }
+  },
 
-	formatPublishDate: function (pubdate) {
-		const timestamp = Date.parse(pubdate);
-		if (Number.isNaN(timestamp)) {
-			return "";
-		}
+  formatPublishDate: function (pubdate) {
+    const timestamp = Date.parse(pubdate)
+    if (Number.isNaN(timestamp)) {
+      return ""
+    }
 
-		// Negative for items published in the past, positive for the future.
-		const secondsFromNow = (timestamp - Date.now()) / 1000;
+    // Negative for items published in the past, positive for the future.
+    const secondsFromNow = (timestamp - Date.now()) / 1000
 
-		// Ordered from largest to smallest unit. The first unit the elapsed time
-		// reaches is used, e.g. 90 minutes -> "1 hour ago". A minute is the
-		// smallest unit, so very recent items stay fuzzy ("1 minute ago") instead
-		// of counting individual seconds.
-		const timeUnits = [
-			{ unit: "year", seconds: 365 * 24 * 60 * 60 },
-			{ unit: "month", seconds: 30 * 24 * 60 * 60 },
-			{ unit: "week", seconds: 7 * 24 * 60 * 60 },
-			{ unit: "day", seconds: 24 * 60 * 60 },
-			{ unit: "hour", seconds: 60 * 60 },
-			{ unit: "minute", seconds: 60 }
-		];
+    // Ordered from largest to smallest unit. The first unit the elapsed time
+    // reaches is used, e.g. 90 minutes -> "1 hour ago". A minute is the
+    // smallest unit, so very recent items stay fuzzy ("1 minute ago") instead
+    // of counting individual seconds.
+    const timeUnits = [
+      { unit: "year", seconds: 365 * 24 * 60 * 60 },
+      { unit: "month", seconds: 30 * 24 * 60 * 60 },
+      { unit: "week", seconds: 7 * 24 * 60 * 60 },
+      { unit: "day", seconds: 24 * 60 * 60 },
+      { unit: "hour", seconds: 60 * 60 },
+      { unit: "minute", seconds: 60 },
+    ]
 
-		const smallestUnit = timeUnits.at(-1);
-		const matchingUnit = timeUnits.find((step) => Math.abs(secondsFromNow) >= step.seconds);
-		const { unit, seconds } = matchingUnit ?? smallestUnit;
+    const smallestUnit = timeUnits.at(-1)
+    const matchingUnit = timeUnits.find(step => Math.abs(secondsFromNow) >= step.seconds)
+    const { unit, seconds } = matchingUnit ?? smallestUnit
 
-		// Fresh items would round to 0 ("now"); clamp them to a single unit.
-		let value = Math.round(secondsFromNow / seconds);
-		if (value === 0) {
-			value = secondsFromNow > 0 ? 1 : -1;
-		}
+    // Fresh items would round to 0 ("now"); clamp them to a single unit.
+    let value = Math.round(secondsFromNow / seconds)
+    if (value === 0) {
+      value = secondsFromNow > 0 ? 1 : -1
+    }
 
-		return this.relativeTimeFormatter.format(value, unit);
-	},
+    return this.relativeTimeFormatter.format(value, unit)
+  },
 
-	getActiveItemURL: function () {
-		return typeof this.newsItems[this.activeItem].url === "string" ? this.newsItems[this.activeItem].url : this.newsItems[this.activeItem].url.href;
-	},
+  getActiveItemURL: function () {
+    return typeof this.newsItems[this.activeItem].url === "string" ? this.newsItems[this.activeItem].url : this.newsItems[this.activeItem].url.href
+  },
 
-	/**
-	 * Registers the feeds to be used by the backend.
-	 */
-	registerFeeds: function () {
-		for (let feed of this.config.feeds) {
-			this.sendSocketNotification("ADD_FEED", {
-				feed: feed,
-				config: this.config
-			});
-		}
-	},
+  /**
+   * Registers the feeds to be used by the backend.
+   */
+  registerFeeds: function () {
+    for (let feed of this.config.feeds) {
+      this.sendSocketNotification("ADD_FEED", {
+        feed: feed,
+        config: this.config,
+      })
+    }
+  },
 
-	/**
-	 * Generate an ordered list of items for this configured module.
-	 *
-	 * @param {object} feeds An object with feeds returned by the node helper.
-	 */
-	generateFeed: function (feeds) {
-		let newsItems = [];
-		for (let feed in feeds) {
-			const feedItems = feeds[feed];
-			if (this.subscribedToFeed(feed)) {
-				for (let item of feedItems) {
-					item.sourceTitle = this.titleForFeed(feed);
-					if (!(this.config.ignoreOldItems && Date.now() - new Date(item.pubdate) > this.config.ignoreOlderThan)) {
-						if (this.config.suppressDuplicateTitles) {
-							if (!this.duplicateTitle(newsItems, item)) {
-								newsItems.push(item);
-							}
-						} else {
-							newsItems.push(item);
-						}
-					}
-				}
-			}
-		}
-		newsItems.sort(function (a, b) {
-			const dateA = new Date(a.pubdate);
-			const dateB = new Date(b.pubdate);
-			return dateB - dateA;
-		});
+  /**
+   * Generate an ordered list of items for this configured module.
+   *
+   * @param {object} feeds An object with feeds returned by the node helper.
+   */
+  generateFeed: function (feeds) {
+    let newsItems = []
+    for (let feed in feeds) {
+      const feedItems = feeds[feed]
+      if (this.subscribedToFeed(feed)) {
+        for (let item of feedItems) {
+          item.sourceTitle = this.titleForFeed(feed)
+          if (!(this.config.ignoreOldItems && Date.now() - new Date(item.pubdate) > this.config.ignoreOlderThan)) {
+            if (this.config.suppressDuplicateTitles) {
+              if (!this.duplicateTitle(newsItems, item)) {
+                newsItems.push(item)
+              }
+            }
+            else {
+              newsItems.push(item)
+            }
+          }
+        }
+      }
+    }
+    newsItems.sort(function (a, b) {
+      const dateA = new Date(a.pubdate)
+      const dateB = new Date(b.pubdate)
+      return dateB - dateA
+    })
 
-		if (this.config.maxNewsItems > 0) {
-			newsItems = newsItems.slice(0, this.config.maxNewsItems);
-		}
+    if (this.config.maxNewsItems > 0) {
+      newsItems = newsItems.slice(0, this.config.maxNewsItems)
+    }
 
-		if (this.config.prohibitedWords.length > 0) {
-			newsItems = newsItems.filter(function (item) {
-				for (let word of this.config.prohibitedWords) {
-					if (item.title.toLowerCase().indexOf(word.toLowerCase()) > -1) {
-						return false;
-					}
-				}
-				return true;
-			}, this);
-		}
-		newsItems.forEach((item) => {
-			//Remove selected tags from the beginning of rss feed items (title or description)
-			if (this.config.removeStartTags === "title" || this.config.removeStartTags === "both") {
-				for (let startTag of this.config.startTags) {
-					if (item.title.slice(0, startTag.length) === startTag) {
-						item.title = item.title.slice(startTag.length, item.title.length);
-					}
-				}
-			}
+    if (this.config.prohibitedWords.length > 0) {
+      newsItems = newsItems.filter(function (item) {
+        for (let word of this.config.prohibitedWords) {
+          if (item.title.toLowerCase().indexOf(word.toLowerCase()) > -1) {
+            return false
+          }
+        }
+        return true
+      }, this)
+    }
+    newsItems.forEach((item) => {
+      // Remove selected tags from the beginning of rss feed items (title or description)
+      if (this.config.removeStartTags === "title" || this.config.removeStartTags === "both") {
+        for (let startTag of this.config.startTags) {
+          if (item.title.slice(0, startTag.length) === startTag) {
+            item.title = item.title.slice(startTag.length, item.title.length)
+          }
+        }
+      }
 
-			if (this.config.removeStartTags === "description" || this.config.removeStartTags === "both") {
-				if (this.isShowingDescription) {
-					for (let startTag of this.config.startTags) {
-						if (item.description.slice(0, startTag.length) === startTag) {
-							item.description = item.description.slice(startTag.length, item.description.length);
-						}
-					}
-				}
-			}
+      if (this.config.removeStartTags === "description" || this.config.removeStartTags === "both") {
+        if (this.isShowingDescription) {
+          for (let startTag of this.config.startTags) {
+            if (item.description.slice(0, startTag.length) === startTag) {
+              item.description = item.description.slice(startTag.length, item.description.length)
+            }
+          }
+        }
+      }
 
-			//Remove selected tags from the end of rss feed items (title or description)
-			if (this.config.removeEndTags) {
-				for (let endTag of this.config.endTags) {
-					if (item.title.slice(-endTag.length) === endTag) {
-						item.title = item.title.slice(0, -endTag.length);
-					}
-				}
+      // Remove selected tags from the end of rss feed items (title or description)
+      if (this.config.removeEndTags) {
+        for (let endTag of this.config.endTags) {
+          if (item.title.slice(-endTag.length) === endTag) {
+            item.title = item.title.slice(0, -endTag.length)
+          }
+        }
 
-				if (this.isShowingDescription) {
-					for (let endTag of this.config.endTags) {
-						if (item.description.slice(-endTag.length) === endTag) {
-							item.description = item.description.slice(0, -endTag.length);
-						}
-					}
-				}
-			}
-			if (Array.isArray(this.config.censorWords) && this.config.censorWords.length > 0) {
-				let rgx = new RegExp(this.config.censorWords.join("|"), "gi")
-				const filter = (str) => {
-					return str.replace(rgx, "")
-				}
+        if (this.isShowingDescription) {
+          for (let endTag of this.config.endTags) {
+            if (item.description.slice(-endTag.length) === endTag) {
+              item.description = item.description.slice(0, -endTag.length)
+            }
+          }
+        }
+      }
+      if (Array.isArray(this.config.censorWords) && this.config.censorWords.length > 0) {
+        let rgx = new RegExp(this.config.censorWords.join("|"), "gi")
+        const filter = (str) => {
+          return str.replace(rgx, "")
+        }
 
-				item.title = filter(item.title)
-				item.description = filter(item.description)
-			}
-		});
+        item.title = filter(item.title)
+        item.description = filter(item.description)
+      }
+    })
 
-		// get updated news items and broadcast them
-		const updatedItems = [];
-		newsItems.forEach((value) => {
-			if (this.newsItems.findIndex((value1) => value1 === value) === -1) {
-				// Add item to updated items list
-				updatedItems.push(value);
-			}
-		});
+    // get updated news items and broadcast them
+    const updatedItems = []
+    newsItems.forEach((value) => {
+      if (this.newsItems.findIndex(value1 => value1 === value) === -1) {
+        // Add item to updated items list
+        updatedItems.push(value)
+      }
+    })
 
-		// check if updated items exist, if so and if we should broadcast these updates, then lets do so
-		if (this.config.broadcastNewsUpdates && updatedItems.length > 0) {
-			this.sendNotification("NEWS_FEED_UPDATE", { items: updatedItems });
-		}
+    // check if updated items exist, if so and if we should broadcast these updates, then lets do so
+    if (this.config.broadcastNewsUpdates && updatedItems.length > 0) {
+      this.sendNotification("NEWS_FEED_UPDATE", { items: updatedItems })
+    }
 
-		this.newsItems = newsItems;
-	},
+    this.newsItems = newsItems
+  },
 
-	/**
-	 * Check if this module is configured to show this feed.
-	 *
-	 * @param {string} feedUrl Url of the feed to check.
-	 * @returns {boolean} True if it is subscribed, false otherwise
-	 */
-	subscribedToFeed: function (feedUrl) {
-		for (let feed of this.config.feeds) {
-			if (feed.url === feedUrl) {
-				return true;
-			}
-		}
-		return false;
-	},
+  /**
+   * Check if this module is configured to show this feed.
+   *
+   * @param {string} feedUrl Url of the feed to check.
+   * @returns {boolean} True if it is subscribed, false otherwise
+   */
+  subscribedToFeed: function (feedUrl) {
+    for (let feed of this.config.feeds) {
+      if (feed.url === feedUrl) {
+        return true
+      }
+    }
+    return false
+  },
 
-	/**
-	 * Returns title for the specific feed url.
-	 *
-	 * @param {string} feedUrl Url of the feed
-	 * @returns {string} The title of the feed
-	 */
-	titleForFeed: function (feedUrl) {
-		for (let feed of this.config.feeds) {
-			if (feed.url === feedUrl) {
-				return feed.title || "";
-			}
-		}
-		return "";
-	},
+  /**
+   * Returns title for the specific feed url.
+   *
+   * @param {string} feedUrl Url of the feed
+   * @returns {string} The title of the feed
+   */
+  titleForFeed: function (feedUrl) {
+    for (let feed of this.config.feeds) {
+      if (feed.url === feedUrl) {
+        return feed.title || ""
+      }
+    }
+    return ""
+  },
 
+  /**
+   * Check if the title of a news item exists in an array of news items.
+   *
+   * @param {object} newsItems array of news items
+     * @param {object} item a news item
+   * @returns {boolean} True if the title of item already is the same as any of the titles in an array of news items.
+   */
+  duplicateTitle: function (newsItems, item) {
+    const newTitle = item.title.toLowerCase()
+    return newsItems.some(existingItem => existingItem.title.toLowerCase() === newTitle)
+  },
 
-	/**
-	 * Check if the title of a news item exists in an array of news items.
-	 *
-	 * @param {object} newsItems array of news items
-  	 * @param {object} item a news item
-	 * @returns {boolean} True if the title of item already is the same as any of the titles in an array of news items.
-	 */
-	duplicateTitle: function (newsItems, item) {
-		const newTitle = item.title.toLowerCase();
-		return newsItems.some((existingItem) => existingItem.title.toLowerCase() === newTitle);
-	},
+  /**
+   * Schedule visual update.
+   */
+  scheduleUpdateInterval: function () {
+    this.updateDom(this.config.animationSpeed)
 
+    // Broadcast NewsFeed if needed
+    if (this.config.broadcastNewsFeeds) {
+      this.sendNotification("NEWS_FEED", { items: this.newsItems })
+    }
 
-	/**
-	 * Schedule visual update.
-	 */
-	scheduleUpdateInterval: function () {
-		this.updateDom(this.config.animationSpeed);
+    // #2638 Clear timer if it already exists
+    if (this.timer) clearInterval(this.timer)
 
-		// Broadcast NewsFeed if needed
-		if (this.config.broadcastNewsFeeds) {
-			this.sendNotification("NEWS_FEED", { items: this.newsItems });
-		}
+    this.timer = setInterval(() => {
+      this.activeItem++
+      this.updateDom(this.config.animationSpeed)
 
-		// #2638 Clear timer if it already exists
-		if (this.timer) clearInterval(this.timer);
+      // Broadcast NewsFeed if needed
+      if (this.config.broadcastNewsFeeds) {
+        this.sendNotification("NEWS_FEED", { items: this.newsItems })
+      }
+    }, this.config.updateInterval)
+  },
 
-		this.timer = setInterval(() => {
-			this.activeItem++;
-			this.updateDom(this.config.animationSpeed);
+  resetDescrOrFullArticleAndTimer: function () {
+    this.isShowingDescription = this.config.showDescription
+    this.config.showFullArticle = false
+    this.scrollPosition = 0
+    // reset bottom bar alignment
+    document.getElementsByClassName("region bottom bar")[0].classList.remove("newsfeed-fullarticle")
+    if (!this.timer) {
+      this.scheduleUpdateInterval()
+    }
+  },
 
-			// Broadcast NewsFeed if needed
-			if (this.config.broadcastNewsFeeds) {
-				this.sendNotification("NEWS_FEED", { items: this.newsItems });
-			}
-		}, this.config.updateInterval);
-	},
+  notificationReceived: function (notification) {
+    const before = this.activeItem
+    if (notification === "MODULE_DOM_CREATED" && this.config.hideLoading) {
+      this.hide()
+    }
+    else if (notification === "ARTICLE_NEXT") {
+      this.activeItem++
+      if (this.activeItem >= this.newsItems.length) {
+        this.activeItem = 0
+      }
+      this.resetDescrOrFullArticleAndTimer()
+      Log.debug(this.name + " - going from article #" + before + " to #" + this.activeItem + " (of " + this.newsItems.length + ")")
+      this.updateDom(100)
+    }
+    else if (notification === "ARTICLE_PREVIOUS") {
+      this.activeItem--
+      if (this.activeItem < 0) {
+        this.activeItem = this.newsItems.length - 1
+      }
+      this.resetDescrOrFullArticleAndTimer()
+      Log.debug(this.name + " - going from article #" + before + " to #" + this.activeItem + " (of " + this.newsItems.length + ")")
+      this.updateDom(100)
+    }
+    // if "more details" is received the first time: show article summary, on second time show full article
+    else if (notification === "ARTICLE_MORE_DETAILS") {
+      // full article is already showing, so scrolling down
+      if (this.config.showFullArticle === true) {
+        this.scrollPosition += this.config.scrollLength
+        window.scrollTo(0, this.scrollPosition)
+        Log.debug(this.name + " - scrolling down")
+        Log.debug(this.name + " - ARTICLE_MORE_DETAILS, scroll position: " + this.config.scrollLength)
+      }
+      else {
+        this.showFullArticle()
+      }
+    }
+    else if (notification === "ARTICLE_SCROLL_UP") {
+      if (this.config.showFullArticle === true) {
+        this.scrollPosition -= this.config.scrollLength
+        window.scrollTo(0, this.scrollPosition)
+        Log.debug(this.name + " - scrolling up")
+        Log.debug(this.name + " - ARTICLE_SCROLL_UP, scroll position: " + this.config.scrollLength)
+      }
+    }
+    else if (notification === "ARTICLE_LESS_DETAILS") {
+      this.resetDescrOrFullArticleAndTimer()
+      Log.debug(this.name + " - showing only article titles again")
+      this.updateDom(100)
+    }
+    else if (notification === "ARTICLE_TOGGLE_FULL") {
+      if (this.config.showFullArticle) {
+        this.activeItem++
+        this.resetDescrOrFullArticleAndTimer()
+      }
+      else {
+        this.showFullArticle()
+      }
+    }
+    else if (notification === "ARTICLE_INFO_REQUEST") {
+      this.sendNotification("ARTICLE_INFO_RESPONSE", {
+        title: this.newsItems[this.activeItem].title,
+        source: this.newsItems[this.activeItem].sourceTitle,
+        date: this.newsItems[this.activeItem].pubdate,
+        desc: this.newsItems[this.activeItem].description,
+        url: this.getActiveItemURL(),
+      })
+    }
+  },
 
-	resetDescrOrFullArticleAndTimer: function () {
-		this.isShowingDescription = this.config.showDescription;
-		this.config.showFullArticle = false;
-		this.scrollPosition = 0;
-		// reset bottom bar alignment
-		document.getElementsByClassName("region bottom bar")[0].classList.remove("newsfeed-fullarticle");
-		if (!this.timer) {
-			this.scheduleUpdateInterval();
-		}
-	},
-
-	notificationReceived: function (notification) {
-		const before = this.activeItem;
-		if (notification === "MODULE_DOM_CREATED" && this.config.hideLoading) {
-			this.hide();
-		} else if (notification === "ARTICLE_NEXT") {
-			this.activeItem++;
-			if (this.activeItem >= this.newsItems.length) {
-				this.activeItem = 0;
-			}
-			this.resetDescrOrFullArticleAndTimer();
-			Log.debug(this.name + " - going from article #" + before + " to #" + this.activeItem + " (of " + this.newsItems.length + ")");
-			this.updateDom(100);
-		} else if (notification === "ARTICLE_PREVIOUS") {
-			this.activeItem--;
-			if (this.activeItem < 0) {
-				this.activeItem = this.newsItems.length - 1;
-			}
-			this.resetDescrOrFullArticleAndTimer();
-			Log.debug(this.name + " - going from article #" + before + " to #" + this.activeItem + " (of " + this.newsItems.length + ")");
-			this.updateDom(100);
-		}
-		// if "more details" is received the first time: show article summary, on second time show full article
-		else if (notification === "ARTICLE_MORE_DETAILS") {
-			// full article is already showing, so scrolling down
-			if (this.config.showFullArticle === true) {
-				this.scrollPosition += this.config.scrollLength;
-				window.scrollTo(0, this.scrollPosition);
-				Log.debug(this.name + " - scrolling down");
-				Log.debug(this.name + " - ARTICLE_MORE_DETAILS, scroll position: " + this.config.scrollLength);
-			} else {
-				this.showFullArticle();
-			}
-		} else if (notification === "ARTICLE_SCROLL_UP") {
-			if (this.config.showFullArticle === true) {
-				this.scrollPosition -= this.config.scrollLength;
-				window.scrollTo(0, this.scrollPosition);
-				Log.debug(this.name + " - scrolling up");
-				Log.debug(this.name + " - ARTICLE_SCROLL_UP, scroll position: " + this.config.scrollLength);
-			}
-		} else if (notification === "ARTICLE_LESS_DETAILS") {
-			this.resetDescrOrFullArticleAndTimer();
-			Log.debug(this.name + " - showing only article titles again");
-			this.updateDom(100);
-		} else if (notification === "ARTICLE_TOGGLE_FULL") {
-			if (this.config.showFullArticle) {
-				this.activeItem++;
-				this.resetDescrOrFullArticleAndTimer();
-			} else {
-				this.showFullArticle();
-			}
-		} else if (notification === "ARTICLE_INFO_REQUEST") {
-			this.sendNotification("ARTICLE_INFO_RESPONSE", {
-				title: this.newsItems[this.activeItem].title,
-				source: this.newsItems[this.activeItem].sourceTitle,
-				date: this.newsItems[this.activeItem].pubdate,
-				desc: this.newsItems[this.activeItem].description,
-				url: this.getActiveItemURL()
-			});
-		}
-	},
-
-	showFullArticle: function () {
-		this.isShowingDescription = !this.isShowingDescription;
-		this.config.showFullArticle = !this.isShowingDescription;
-		// make bottom bar align to top to allow scrolling
-		if (this.config.showFullArticle === true) {
-			document.getElementsByClassName("region bottom bar")[0].classList.add("newsfeed-fullarticle");
-		}
-		clearInterval(this.timer);
-		this.timer = null;
-		Log.debug(this.name + " - showing " + this.isShowingDescription ? "article description" : "full article");
-		this.updateDom(100);
-	}
-});
+  showFullArticle: function () {
+    this.isShowingDescription = !this.isShowingDescription
+    this.config.showFullArticle = !this.isShowingDescription
+    // make bottom bar align to top to allow scrolling
+    if (this.config.showFullArticle === true) {
+      document.getElementsByClassName("region bottom bar")[0].classList.add("newsfeed-fullarticle")
+    }
+    clearInterval(this.timer)
+    this.timer = null
+    Log.debug(this.name + " - showing " + this.isShowingDescription ? "article description" : "full article")
+    this.updateDom(100)
+  },
+})
