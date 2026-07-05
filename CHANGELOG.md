@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.2.1](https://github.com/MMRIZE/MMM-anotherNewsFeed/compare/v1.2.0...v1.2.1) (2026-07-05)
+
+
+### Performance Improvements
+
+* **newsfeed:** use Set for updated item lookup ([e3aad5e](https://github.com/MMRIZE/MMM-anotherNewsFeed/commit/e3aad5e9dce2d37ffc204c609b9b85b5d4338ceb))
+
+
+### Chores
+
+* add stylistic ESLint plugin ([74462bc](https://github.com/MMRIZE/MMM-anotherNewsFeed/commit/74462bc3e06b9482a934aac7a5c2e04f7d78569e))
+* update checkout action ([cb68bb8](https://github.com/MMRIZE/MMM-anotherNewsFeed/commit/cb68bb8375df88e75440cc2c8377d3790e85bf22))
+* update dependencies ([9b4df86](https://github.com/MMRIZE/MMM-anotherNewsFeed/commit/9b4df86a167dc220389cf5bf7af9559f3f2949ce))
+
+
+### Code Refactoring
+
+* apply new linter rules ([4eb49e8](https://github.com/MMRIZE/MMM-anotherNewsFeed/commit/4eb49e84dd43e32156207c21aaf28fbc337d16c1))
+* replace moment with Intl.RelativeTimeFormat for publish dates ([4a000b0](https://github.com/MMRIZE/MMM-anotherNewsFeed/commit/4a000b0d0593194b0e9fc55975be4b9a2ccc992f))
+* use Map for fetchers store ([edc4564](https://github.com/MMRIZE/MMM-anotherNewsFeed/commit/edc4564830c0c6836ed5fbc3ffc0493ebba7f569))
+
 ## [1.2.0](https://github.com/MMRIZE/MMM-anotherNewsFeed/compare/v1.1.1...v1.2.0) (2026-05-07)
 
 
