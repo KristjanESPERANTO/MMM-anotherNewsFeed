@@ -6,7 +6,7 @@ module.exports = NodeHelper.create({
   // Override start method.
   start: function () {
     Log.log("Starting node helper for: " + this.name)
-    this.fetchers = []
+    this.fetchers = new Map()
   },
 
   // Override socketNotificationReceived received.
@@ -38,7 +38,7 @@ module.exports = NodeHelper.create({
     }
 
     let fetcher
-    if (typeof this.fetchers[url] === "undefined") {
+    if (!this.fetchers.has(url)) {
       Log.log("Create new newsfetcher for url: " + url + " - Interval: " + reloadInterval)
       fetcher = new NewsfeedFetcher(url, reloadInterval, encoding, config.logFeedWarnings)
 
@@ -54,11 +54,11 @@ module.exports = NodeHelper.create({
         })
       })
 
-      this.fetchers[url] = fetcher
+      this.fetchers.set(url, fetcher)
     }
     else {
       Log.log("Use existing newsfetcher for url: " + url)
-      fetcher = this.fetchers[url]
+      fetcher = this.fetchers.get(url)
       fetcher.setReloadInterval(reloadInterval)
       fetcher.broadcastItems()
     }
@@ -72,8 +72,8 @@ module.exports = NodeHelper.create({
    */
   broadcastFeeds: function () {
     const feeds = {}
-    for (let f in this.fetchers) {
-      feeds[f] = this.fetchers[f].items()
+    for (const [url, fetcher] of this.fetchers.entries()) {
+      feeds[url] = fetcher.items()
     }
     this.sendSocketNotification("NEWS_ITEMS", feeds)
   },
