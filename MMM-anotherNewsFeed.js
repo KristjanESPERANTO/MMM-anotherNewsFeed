@@ -289,8 +289,9 @@ Module.register("MMM-anotherNewsFeed", {
 
     // get updated news items and broadcast them
     const updatedItems = []
+    const previousItems = new Set(this.newsItems)
     newsItems.forEach((value) => {
-      if (this.newsItems.findIndex(value1 => value1 === value) === -1) {
+      if (!previousItems.has(value)) {
         // Add item to updated items list
         updatedItems.push(value)
       }
