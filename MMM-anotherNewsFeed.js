@@ -1,4 +1,4 @@
-/* globals config Log Module moment */
+/* globals config Log Module */
 
 Module.register("MMM-anotherNewsFeed", {
 	// Default module config.
@@ -41,11 +41,6 @@ Module.register("MMM-anotherNewsFeed", {
 		suppressDuplicateTitles: false,
 	},
 
-	// Define required scripts.
-	getScripts: function () {
-		return ["moment.js"];
-	},
-
 	//Define required styles.
 	getStyles: function () {
 		return ["newsfeed.css"];
@@ -63,8 +58,7 @@ Module.register("MMM-anotherNewsFeed", {
 	start: function () {
 		Log.info("Starting module: " + this.name);
 
-		// Set locale.
-		moment.locale(config.language);
+		this.relativeTimeFormatter = new Intl.RelativeTimeFormat(config.language, { numeric: "auto" });
 
 		this.newsItems = [];
 		this.loaded = false;
@@ -130,8 +124,8 @@ Module.register("MMM-anotherNewsFeed", {
 		}
 
 		const item = this.newsItems[this.activeItem];
-		const items = this.newsItems.map(function (item) {
-			item.publishDate = moment(new Date(item.pubdate)).fromNow();
+		const items = this.newsItems.map((item) => {
+			item.publishDate = this.formatPublishDate(item.pubdate);
 			return item;
 		});
 
@@ -139,13 +133,48 @@ Module.register("MMM-anotherNewsFeed", {
 			loaded: true,
 			config: this.config,
 			sourceTitle: item.sourceTitle,
-			publishDate: moment(new Date(item.pubdate)).fromNow(),
+			publishDate: this.formatPublishDate(item.pubdate),
 			title: item.title,
 			url: item.url,
 			description: item.description,
 			image: item.image,
 			items: items
 		};
+	},
+
+	formatPublishDate: function (pubdate) {
+		const timestamp = Date.parse(pubdate);
+		if (Number.isNaN(timestamp)) {
+			return "";
+		}
+
+		// Negative for items published in the past, positive for the future.
+		const secondsFromNow = (timestamp - Date.now()) / 1000;
+
+		// Ordered from largest to smallest unit. The first unit the elapsed time
+		// reaches is used, e.g. 90 minutes -> "1 hour ago". A minute is the
+		// smallest unit, so very recent items stay fuzzy ("1 minute ago") instead
+		// of counting individual seconds.
+		const timeUnits = [
+			{ unit: "year", seconds: 365 * 24 * 60 * 60 },
+			{ unit: "month", seconds: 30 * 24 * 60 * 60 },
+			{ unit: "week", seconds: 7 * 24 * 60 * 60 },
+			{ unit: "day", seconds: 24 * 60 * 60 },
+			{ unit: "hour", seconds: 60 * 60 },
+			{ unit: "minute", seconds: 60 }
+		];
+
+		const smallestUnit = timeUnits.at(-1);
+		const matchingUnit = timeUnits.find((step) => Math.abs(secondsFromNow) >= step.seconds);
+		const { unit, seconds } = matchingUnit ?? smallestUnit;
+
+		// Fresh items would round to 0 ("now"); clamp them to a single unit.
+		let value = Math.round(secondsFromNow / seconds);
+		if (value === 0) {
+			value = secondsFromNow > 0 ? 1 : -1;
+		}
+
+		return this.relativeTimeFormatter.format(value, unit);
 	},
 
 	getActiveItemURL: function () {
@@ -307,14 +336,14 @@ Module.register("MMM-anotherNewsFeed", {
 	 * Check if the title of a news item exists in an array of news items.
 	 *
 	 * @param {object} newsItems array of news items
-  	 * @param {object} item a news item 
+  	 * @param {object} item a news item
 	 * @returns {boolean} True if the title of item already is the same as any of the titles in an array of news items.
 	 */
 	duplicateTitle: function (newsItems, item) {
 		const newTitle = item.title.toLowerCase();
 		return newsItems.some((existingItem) => existingItem.title.toLowerCase() === newTitle);
 	},
-	
+
 
 	/**
 	 * Schedule visual update.
